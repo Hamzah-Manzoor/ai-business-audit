@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def discover_urls_from_sitemap(homepage: str) -> list:
     """Fetch sitemap.xml and return up to 4 same-domain URLs (homepage excluded)."""
     try:
-        resp = requests.get(f"{homepage}/sitemap.xml", timeout=10)
+        resp = requests.get(f"{homepage.rstrip('/')}/sitemap.xml", timeout=10)
         if resp.status_code != 200:
             return []
         soup = BeautifulSoup(resp.text, 'lxml-xml')
