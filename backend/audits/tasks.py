@@ -68,8 +68,6 @@ def scrape_website(audit_job_id: int):
                     last_error = str(e)
                     logger.warning(f"Failed to scrape {url} (job={audit_job_id}): {e}")
 
-            browser.close()
-
     except Exception as e:
         last_error = str(e)
         logger.error(f"Fatal scrape error for job {audit_job_id}: {e}")
