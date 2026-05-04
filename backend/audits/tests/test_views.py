@@ -48,3 +48,40 @@ class BusinessDetailViewTest(TestCase):
     def test_get_missing_business_returns_404(self):
         response = self.client.get('/api/businesses/9999/')
         self.assertEqual(response.status_code, 404)
+
+
+class AuditTriggerViewTest(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(name='Acme', url='https://acme.com')
+
+    @patch('audits.views.scrape_website')
+    def test_creates_audit_job_and_dispatches_task(self, mock_task):
+        response = self.client.post(f'/api/businesses/{self.business.id}/audit/')
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data['status'], 'pending')
+        self.assertIn('audit_job_id', data)
+        mock_task.delay.assert_called_once_with(data['audit_job_id'])
+
+    @patch('audits.views.scrape_website')
+    def test_audit_trigger_missing_business_returns_404(self, mock_task):
+        response = self.client.post('/api/businesses/9999/audit/')
+        self.assertEqual(response.status_code, 404)
+        mock_task.delay.assert_not_called()
+
+
+class AuditStatusViewTest(TestCase):
+    def setUp(self):
+        business = Business.objects.create(name='Acme', url='https://acme.com')
+        self.job = AuditJob.objects.create(business=business, status='running')
+
+    def test_returns_job_status(self):
+        response = self.client.get(f'/api/audits/{self.job.id}/status/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'running')
+        self.assertEqual(data['id'], self.job.id)
+
+    def test_missing_job_returns_404(self):
+        response = self.client.get('/api/audits/9999/status/')
+        self.assertEqual(response.status_code, 404)
