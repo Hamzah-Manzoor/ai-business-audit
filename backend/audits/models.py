@@ -120,6 +120,7 @@ class ScrapedPage(models.Model):
     h1_tags = models.JSONField(default=list)
     h2_tags = models.JSONField(default=list)
     internal_links = models.JSONField(default=list)
+    image_alts = models.JSONField(default=list)
     load_time_ms = models.IntegerField(null=True, blank=True)
     https = models.BooleanField(default=False)
     status_code = models.IntegerField(null=True, blank=True)
