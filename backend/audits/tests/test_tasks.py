@@ -88,7 +88,7 @@ class ScrapeWebsiteTaskTest(TestCase):
 
         self.job.refresh_from_db()
         self.assertEqual(self.job.status, 'failed')
-        self.assertIn('Timeout', self.job.error_message)
+        self.assertEqual(self.job.error_message, 'No pages could be scraped')
 
     def test_returns_early_for_nonexistent_job(self):
         # Should not raise — just log and return
