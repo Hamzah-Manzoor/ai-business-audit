@@ -90,3 +90,10 @@ class ScrapedPageModelTest(TestCase):
             url='https://acme.com', https=True, status_code=200,
         )
         self.assertIn('acme.com', str(page))
+
+    def test_image_alts_defaults_to_empty_list(self):
+        page = ScrapedPage.objects.create(
+            business=self.business, audit_job=self.job,
+            url='https://acme.com',
+        )
+        self.assertEqual(page.image_alts, [])

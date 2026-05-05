@@ -23,6 +23,10 @@ ai-business-audit/
 │   ├── config/       # settings, urls, wsgi, asgi, celery
 │   ├── core/         # health check endpoint
 │   └── audits/       # all data models, business logic
+│       ├── scraper.py    # pure page extraction logic (no Celery/DB)
+│       ├── tasks.py      # scrape_website Celery task
+│       ├── serializers.py
+│       └── views.py
 └── frontend/         # Next.js app (App Router)
     └── src/app/
 ```
@@ -47,7 +51,7 @@ docker compose exec backend python manage.py createsuperuser
 
 ## Phase Completion Status
 - [x] Phase 1 — Foundation (skeleton, models, Docker, health check)
-- [ ] Phase 2 — Scraper
+- [x] Phase 2 — Scraper (Celery task, Playwright + BS4, 5-page crawl, REST endpoints)
 - [ ] Phase 3 — Audit Engine
 - [ ] Phase 4 — RAG Knowledge System
 - [ ] Phase 5 — Decision Engine
@@ -61,4 +65,4 @@ docker compose exec backend python manage.py createsuperuser
 
 ## Known Issues / TODOs
 - Phase 1 only: ANTHROPIC_API_KEY and OPENAI_API_KEY are placeholder values — fill in before Phase 3
-- Celery worker is running but has no tasks until Phase 2
+- Phase 2: scrape_website runs Playwright in a ThreadPoolExecutor to avoid Django's SynchronousOnlyOperation; all ORM writes happen after the thread exits
