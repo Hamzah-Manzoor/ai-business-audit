@@ -56,6 +56,7 @@ class RetrievalTest(TestCase):
             results = retrieve_similar_docs("missing trust signals")
 
         titles = [r.title for r in results]
+        self.assertEqual(len(results), 3)
         self.assertNotIn("No Embedding Doc", titles)
 
     def test_seed_is_idempotent(self):
@@ -70,4 +71,5 @@ class RetrievalTest(TestCase):
                 seed_knowledge_base(directory=tmp_path)
                 count_after_second = KnowledgeDoc.objects.count()
 
+        self.assertGreater(count_after_first, 0, "first seed should have created at least one doc")
         self.assertEqual(count_after_first, count_after_second)
