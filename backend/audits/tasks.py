@@ -8,6 +8,11 @@ from django.utils import timezone
 from playwright.sync_api import sync_playwright
 
 from .scraper import discover_urls_from_sitemap, extract_page_data, extract_same_domain_links
+from .scorers.seo import score_seo
+from .scorers.tech import score_tech
+from .scorers.conversion import score_conversion
+from .scorers.content import score_content
+from .scorers.trust import score_trust
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +86,6 @@ def scrape_website(audit_job_id: int):
     scraped_pages: list[dict] = []
 
     try:
-        # Run Playwright in a dedicated thread; no ORM calls happen inside.
-        # This avoids Django's SynchronousOnlyOperation check, which fires
-        # when sync ORM is invoked while Playwright's internal asyncio loop
-        # is active on the current thread.
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(_playwright_scrape, homepage)
             scraped_pages = future.result(timeout=180)
@@ -92,7 +93,6 @@ def scrape_website(audit_job_id: int):
         last_error = str(e)
         logger.error(f"Fatal scrape error for job {audit_job_id}: {e}")
 
-    # All ORM writes happen here, outside the Playwright/asyncio context.
     saved_count = 0
     for page_data in scraped_pages:
         try:
@@ -107,10 +107,90 @@ def scrape_website(audit_job_id: int):
             logger.warning(f"DB save failed for {page_data.get('url')} (job={audit_job_id}): {e}")
 
     if saved_count > 0:
-        job.status = 'complete'
-        job.completed_at = timezone.now()
-        job.save(update_fields=['status', 'completed_at'])
+        run_audit.delay(audit_job_id)
     else:
         job.status = 'failed'
         job.error_message = last_error or 'No pages could be scraped'
         job.save(update_fields=['status', 'error_message'])
+
+
+@shared_task
+def run_audit(audit_job_id: int):
+    from .models import AuditJob, AuditReport, AuditIssue, ScrapedPage
+
+    try:
+        job = AuditJob.objects.get(pk=audit_job_id)
+    except AuditJob.DoesNotExist:
+        logger.error(f"AuditJob {audit_job_id} not found — skipping")
+        return
+
+    try:
+        all_pages = list(ScrapedPage.objects.filter(audit_job=job))
+        if not all_pages:
+            job.status = 'failed'
+            job.error_message = 'No scraped pages found for audit'
+            job.save(update_fields=['status', 'error_message'])
+            return
+
+        root_parsed = urlparse(job.business.url)
+        homepage_url = f"{root_parsed.scheme}://{root_parsed.netloc}"
+        page = next(
+            (p for p in all_pages if p.url.rstrip('/') == homepage_url.rstrip('/')),
+            all_pages[0],
+        )
+
+        seo_result = score_seo(page)
+        tech_result = score_tech(page, all_pages)
+        conv_result = score_conversion(page)
+        content_result = score_content(page)
+        trust_result = score_trust(page)
+
+        overall = round(
+            seo_result.score * 0.20
+            + tech_result.score * 0.20
+            + conv_result.score * 0.25
+            + content_result.score * 0.20
+            + trust_result.score * 0.15
+        )
+
+        report = AuditReport.objects.create(
+            audit_job=job,
+            overall_score=overall,
+            seo_score=seo_result.score,
+            conversion_score=conv_result.score,
+            content_score=content_result.score,
+            tech_score=tech_result.score,
+            trust_score=trust_result.score,
+            raw_llm_response={
+                'conversion': conv_result.model_dump(),
+                'content': content_result.model_dump(),
+                'trust': trust_result.model_dump(),
+            },
+        )
+
+        for result in [seo_result, tech_result, conv_result, content_result, trust_result]:
+            for param in result.parameters:
+                if param.score <= 6:
+                    AuditIssue.objects.create(
+                        report=report,
+                        category=result.category,
+                        severity='critical' if param.score <= 3 else 'warning',
+                        title=param.key.replace('_', ' ').title(),
+                        description=param.rationale,
+                        parameter_key=param.key,
+                        score=param.score,
+                    )
+
+        job.status = 'complete'
+        job.completed_at = timezone.now()
+        job.save(update_fields=['status', 'completed_at'])
+        logger.info(f"run_audit completed for job {audit_job_id}: overall_score={overall}")
+
+    except Exception as exc:
+        logger.error(f"run_audit failed for job {audit_job_id}: {exc}")
+        try:
+            job.status = 'failed'
+            job.error_message = str(exc)
+            job.save(update_fields=['status', 'error_message'])
+        except Exception:
+            pass
