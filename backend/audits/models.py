@@ -98,7 +98,7 @@ class Recommendation(models.Model):
 
 
 class KnowledgeDoc(models.Model):
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=255, unique=True)
     category = models.CharField(max_length=100)
     content = models.TextField()
     embedding = VectorField(dimensions=1536, null=True, blank=True)
