@@ -23,8 +23,13 @@ ai-business-audit/
 │   ├── config/       # settings, urls, wsgi, asgi, celery
 │   ├── core/         # health check endpoint
 │   └── audits/       # all data models, business logic
+│       ├── scorers/      # audit scoring engine
+│       │   ├── schemas.py        # shared Pydantic models
+│       │   ├── claude_client.py  # Claude API wrapper with retry + logging
+│       │   ├── seo.py / tech.py  # deterministic scorers
+│       │   └── conversion.py / content.py / trust.py  # LLM scorers
 │       ├── scraper.py    # pure page extraction logic (no Celery/DB)
-│       ├── tasks.py      # scrape_website Celery task
+│       ├── tasks.py      # scrape_website + run_audit Celery tasks
 │       ├── serializers.py
 │       └── views.py
 └── frontend/         # Next.js app (App Router)
@@ -52,7 +57,7 @@ docker compose exec backend python manage.py createsuperuser
 ## Phase Completion Status
 - [x] Phase 1 — Foundation (skeleton, models, Docker, health check)
 - [x] Phase 2 — Scraper (Celery task, Playwright + BS4, 5-page crawl, REST endpoints)
-- [ ] Phase 3 — Audit Engine
+- [x] Phase 3 — Audit Engine (deterministic + LLM scoring, run_audit task, report + issues API)
 - [ ] Phase 4 — RAG Knowledge System
 - [ ] Phase 5 — Decision Engine
 - [ ] Phase 6 — Dashboard
@@ -62,6 +67,9 @@ docker compose exec backend python manage.py createsuperuser
 - **Celery + Redis** — decouples long-running scrape/audit jobs from the HTTP request cycle; worker defined in Docker Compose from Phase 1
 - **Separate Django apps** — `core` for infrastructure (health check), `audits` for all domain models and business logic
 - **django-environ** — all secrets via environment variables, 12-factor compliant; `.env` file mounted read-only into containers
+- **scorers/ package** — five independent scorer modules (SEO, Tech deterministic; Conversion, Content, Trust via Claude); each takes a ScrapedPage and returns a Pydantic CategoryResult with no Celery or ORM knowledge
+- **claude_client.py** — single entry point for all Claude API calls; retries up to 3 times, logs every attempt as a JSON line (model, tokens, latency, cost_usd, prompt_version)
+- **Celery chain** — scrape_website chains into run_audit on success; job stays 'running' through both tasks, set to 'complete' only after auditing finishes
 
 ## Known Issues / TODOs
 - Phase 1 only: ANTHROPIC_API_KEY and OPENAI_API_KEY are placeholder values — fill in before Phase 3
