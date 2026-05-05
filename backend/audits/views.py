@@ -11,6 +11,7 @@ from .serializers import (
     BusinessSerializer,
 )
 from .tasks import scrape_website
+from .management.commands.seed_knowledge import seed_knowledge_base
 
 
 class BusinessListCreateView(generics.ListCreateAPIView):
@@ -56,3 +57,12 @@ class AuditIssueListView(generics.ListAPIView):
         if severity:
             qs = qs.filter(severity=severity)
         return qs
+
+
+class SeedKnowledgeView(APIView):
+    def post(self, request):
+        try:
+            created, skipped = seed_knowledge_base()
+            return Response({'created': created, 'skipped': skipped})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
