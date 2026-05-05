@@ -13,16 +13,16 @@ logger = logging.getLogger(__name__)
 KNOWLEDGE_BASE_DIR = Path(settings.BASE_DIR).parent / 'knowledge_base'
 
 
-def seed_knowledge_base() -> tuple[int, int]:
+def seed_knowledge_base(directory: Path = KNOWLEDGE_BASE_DIR) -> tuple[int, int]:
     """
-    Scan KNOWLEDGE_BASE_DIR for *.md files, embed each, and save to KnowledgeDoc.
+    Scan directory for *.md files, embed each, and save to KnowledgeDoc.
     Idempotent: skips docs whose title already exists in the DB.
     Returns (created_count, skipped_count).
     """
     created = 0
     skipped = 0
 
-    for md_file in sorted(KNOWLEDGE_BASE_DIR.glob('*.md')):
+    for md_file in sorted(directory.glob('*.md')):
         post = frontmatter.load(md_file)
         title = post.metadata.get('title', md_file.stem)
         category = post.metadata.get('category', 'general')
