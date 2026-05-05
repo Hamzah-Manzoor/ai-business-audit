@@ -101,7 +101,7 @@ class KnowledgeDoc(models.Model):
     title = models.CharField(max_length=255, unique=True)
     category = models.CharField(max_length=100)
     content = models.TextField()
-    embedding = VectorField(dimensions=1536, null=True, blank=True)
+    embedding = VectorField(dimensions=384, null=True, blank=True)
     source = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -10,7 +10,7 @@ from audits.rag.retrieval import retrieve_similar_docs
 
 
 def _make_vector(hot_index: int) -> list[float]:
-    v = [0.0] * 1536
+    v = [0.0] * 384
     v[hot_index] = 1.0
     return v
 

@@ -1,9 +1,17 @@
 import logging
-import os
 
-from openai import OpenAI
+from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
+
+_model: SentenceTransformer | None = None
+
+
+def _get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        _model = SentenceTransformer('all-MiniLM-L6-v2')
+    return _model
 
 
 class EmbeddingError(Exception):
@@ -11,13 +19,9 @@ class EmbeddingError(Exception):
 
 
 def embed_text(text: str) -> list[float]:
-    client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
     try:
-        response = client.embeddings.create(
-            model='text-embedding-3-small',
-            input=text,
-        )
-        return response.data[0].embedding
+        model = _get_model()
+        return model.encode(text, convert_to_numpy=True).tolist()
     except Exception as e:
-        logger.error(f"OpenAI embedding failed: {e}")
+        logger.error(f"Embedding failed: {e}")
         raise EmbeddingError(str(e)) from e
