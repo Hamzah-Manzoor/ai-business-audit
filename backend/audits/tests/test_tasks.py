@@ -36,17 +36,18 @@ class ScrapeWebsiteTaskTest(TestCase):
         self.business = Business.objects.create(name='Acme', url='https://acme.com')
         self.job = AuditJob.objects.create(business=self.business)
 
+    @patch('audits.tasks.run_audit')
     @patch('audits.tasks.sync_playwright')
     @patch('audits.tasks.discover_urls_from_sitemap')
-    def test_marks_job_running_then_complete(self, mock_discover, mock_playwright):
+    def test_marks_job_running_then_chains_audit(self, mock_discover, mock_playwright, mock_run_audit):
         mock_discover.return_value = []
         mock_playwright.return_value = _make_playwright_mock()
 
         scrape_website(self.job.id)
 
         self.job.refresh_from_db()
-        self.assertEqual(self.job.status, 'complete')
-        self.assertIsNotNone(self.job.completed_at)
+        self.assertEqual(self.job.status, 'running')
+        mock_run_audit.delay.assert_called_once_with(self.job.id)
 
     @patch('audits.tasks.sync_playwright')
     @patch('audits.tasks.discover_urls_from_sitemap')
@@ -94,9 +95,10 @@ class ScrapeWebsiteTaskTest(TestCase):
         # Should not raise — just log and return
         scrape_website(99999)
 
+    @patch('audits.tasks.run_audit')
     @patch('audits.tasks.sync_playwright')
     @patch('audits.tasks.discover_urls_from_sitemap')
-    def test_continues_after_single_page_failure(self, mock_discover, mock_playwright):
+    def test_continues_after_single_page_failure(self, mock_discover, mock_playwright, mock_run_audit):
         mock_discover.return_value = ['https://acme.com/about']
 
         mock_response = MagicMock()
@@ -124,5 +126,5 @@ class ScrapeWebsiteTaskTest(TestCase):
         scrape_website(self.job.id)
 
         self.job.refresh_from_db()
-        self.assertEqual(self.job.status, 'complete')
+        self.assertEqual(self.job.status, 'running')
         self.assertEqual(ScrapedPage.objects.filter(audit_job=self.job).count(), 1)

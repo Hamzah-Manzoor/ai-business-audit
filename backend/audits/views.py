@@ -3,8 +3,13 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AuditJob, Business
-from .serializers import AuditJobStatusSerializer, BusinessSerializer
+from .models import AuditJob, AuditReport, Business
+from .serializers import (
+    AuditIssueSerializer,
+    AuditJobStatusSerializer,
+    AuditReportSerializer,
+    BusinessSerializer,
+)
 from .tasks import scrape_website
 
 
@@ -29,3 +34,25 @@ class AuditTriggerView(APIView):
 class AuditStatusView(generics.RetrieveAPIView):
     queryset = AuditJob.objects.all()
     serializer_class = AuditJobStatusSerializer
+
+
+class AuditReportDetailView(generics.RetrieveAPIView):
+    serializer_class = AuditReportSerializer
+
+    def get_object(self):
+        return get_object_or_404(AuditReport, audit_job_id=self.kwargs['pk'])
+
+
+class AuditIssueListView(generics.ListAPIView):
+    serializer_class = AuditIssueSerializer
+
+    def get_queryset(self):
+        report = get_object_or_404(AuditReport, audit_job_id=self.kwargs['pk'])
+        qs = report.issues.all()
+        category = self.request.query_params.get('category')
+        severity = self.request.query_params.get('severity')
+        if category:
+            qs = qs.filter(category=category)
+        if severity:
+            qs = qs.filter(severity=severity)
+        return qs
