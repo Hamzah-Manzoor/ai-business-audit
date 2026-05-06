@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -11,6 +12,7 @@ from .serializers import (
     BusinessSerializer,
 )
 from .tasks import scrape_website
+from .management.commands.seed_knowledge import seed_knowledge_base
 
 
 class BusinessListCreateView(generics.ListCreateAPIView):
@@ -56,3 +58,14 @@ class AuditIssueListView(generics.ListAPIView):
         if severity:
             qs = qs.filter(severity=severity)
         return qs
+
+
+class SeedKnowledgeView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        try:
+            created, skipped = seed_knowledge_base()
+            return Response({'created': created, 'skipped': skipped})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -19,6 +19,7 @@ ai-business-audit/
 ├── REQUIREMENTS.md
 ├── .env.example
 ├── docker-compose.yml
+├── knowledge_base/        # Markdown best-practice docs for RAG seeding
 ├── backend/          # Django project
 │   ├── config/       # settings, urls, wsgi, asgi, celery
 │   ├── core/         # health check endpoint
@@ -26,8 +27,13 @@ ai-business-audit/
 │       ├── scorers/      # audit scoring engine
 │       │   ├── schemas.py        # shared Pydantic models
 │       │   ├── claude_client.py  # Claude API wrapper with retry + logging
-│       │   ├── seo.py / tech.py  # deterministic scorers
-│       │   └── conversion.py / content.py / trust.py  # LLM scorers
+│       │   └── seo.py / tech.py / conversion.py / content.py / trust.py
+│       ├── rag/          # RAG knowledge retrieval
+│       │   ├── openai_client.py  # embed_text() via OpenAI text-embedding-3-small
+│       │   └── retrieval.py      # retrieve_similar_docs() via pgvector CosineDistance
+│       ├── management/
+│       │   └── commands/
+│       │       └── seed_knowledge.py  # seed_knowledge_base() + Django Command
 │       ├── scraper.py    # pure page extraction logic (no Celery/DB)
 │       ├── tasks.py      # scrape_website + run_audit Celery tasks
 │       ├── serializers.py
@@ -58,7 +64,7 @@ docker compose exec backend python manage.py createsuperuser
 - [x] Phase 1 — Foundation (skeleton, models, Docker, health check)
 - [x] Phase 2 — Scraper (Celery task, Playwright + BS4, 5-page crawl, REST endpoints)
 - [x] Phase 3 — Audit Engine (deterministic + LLM scoring, run_audit task, report + issues API)
-- [ ] Phase 4 — RAG Knowledge System
+- [x] Phase 4 — RAG Knowledge System
 - [ ] Phase 5 — Decision Engine
 - [ ] Phase 6 — Dashboard
 
@@ -70,6 +76,10 @@ docker compose exec backend python manage.py createsuperuser
 - **scorers/ package** — five independent scorer modules (SEO, Tech deterministic; Conversion, Content, Trust via Claude); each takes a ScrapedPage and returns a Pydantic CategoryResult with no Celery or ORM knowledge
 - **claude_client.py** — single entry point for all Claude API calls; retries up to 3 times, logs every attempt as a JSON line (model, tokens, latency, cost_usd, prompt_version)
 - **Celery chain** — scrape_website chains into run_audit on success; job stays 'running' through both tasks, set to 'complete' only after auditing finishes
+- **audits/rag/ sub-package** — mirrors scorers/ pattern; openai_client.py wraps the OpenAI SDK for embeddings, retrieval.py runs cosine similarity via pgvector CosineDistance annotation; each has one clear responsibility and no Celery/ORM coupling
+- **Sync seed endpoint** — POST /api/knowledge/seed/ runs synchronously; seeding ~6 docs takes <5s, so Celery overhead is not justified for a one-time admin operation
+- **YAML frontmatter in markdown** — each knowledge_base/*.md file carries title/category/source metadata parsed with python-frontmatter; self-contained, standard format
+- **Idempotent seeding** — seed_knowledge_base() skips any KnowledgeDoc whose title already exists; safe to run multiple times; accepts an optional directory parameter for testability
 
 ## Known Issues / TODOs
 - Phase 1 only: ANTHROPIC_API_KEY and OPENAI_API_KEY are placeholder values — fill in before Phase 3

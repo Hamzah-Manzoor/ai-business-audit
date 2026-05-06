@@ -9,4 +9,5 @@ urlpatterns = [
     path('audits/<int:pk>/status/', views.AuditStatusView.as_view(), name='audit-status'),
     path('audits/<int:pk>/', views.AuditReportDetailView.as_view(), name='audit-report'),
     path('audits/<int:pk>/issues/', views.AuditIssueListView.as_view(), name='audit-issues'),
+    path('knowledge/seed/', views.SeedKnowledgeView.as_view(), name='knowledge-seed'),
 ]
