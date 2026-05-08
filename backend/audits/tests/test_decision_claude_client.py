@@ -76,7 +76,7 @@ class GenerateRecommendationsWithClaudeTest(TestCase):
             results = generate_recommendations_with_claude(_SAMPLE_ISSUES)
         self.assertEqual(results, [])
 
-    def test_raises_on_missing_tool_block(self):
+    def test_returns_empty_list_on_missing_tool_block(self):
         response = MagicMock()
         response.content = []
         response.usage.input_tokens = 50

@@ -61,7 +61,7 @@ def _build_prompt(ranked_issues_with_context: list[dict]) -> str:
         )
         lines.append(f"Description: {item['description']}")
         lines.append('Best-practice context:')
-        for doc in item['rag_context']:
+        for doc in item.get('rag_context', []):
             lines.append(f"  - {doc['title']}: {doc['content']}")
     return '\n'.join(lines)
 
