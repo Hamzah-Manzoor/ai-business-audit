@@ -188,6 +188,7 @@ def run_audit(audit_job_id: int):
         job.completed_at = timezone.now()
         job.save(update_fields=['status', 'completed_at'])
         logger.info(f"run_audit completed for job {audit_job_id}: overall_score={overall}")
+        generate_recommendations.delay(audit_job_id)
 
     except Exception as exc:
         logger.error(f"run_audit failed for job {audit_job_id}: {exc}")

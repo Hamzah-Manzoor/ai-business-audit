@@ -44,6 +44,9 @@ class RunAuditTaskTest(TestCase):
             status_code=200,
             load_time_ms=800,
         )
+        self._gen_recs_patcher = patch('audits.tasks.generate_recommendations')
+        self.mock_gen_recs = self._gen_recs_patcher.start()
+        self.addCleanup(self._gen_recs_patcher.stop)
 
     @patch('audits.tasks.score_seo')
     @patch('audits.tasks.score_tech')
@@ -194,3 +197,46 @@ class ScrapeWebsiteChainTest(TestCase):
         scrape_website(self.job.id)
         self.job.refresh_from_db()
         self.assertNotEqual(self.job.status, 'complete')
+
+
+class RunAuditChainsGenerateRecommendationsTest(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(name='Chain Co', url='https://chain.com')
+        self.job = AuditJob.objects.create(business=self.business, status='running')
+        ScrapedPage.objects.create(
+            business=self.business,
+            audit_job=self.job,
+            url='https://chain.com',
+            html_content='<html></html>',
+            extracted_text='content',
+            meta_title='Title',
+            meta_description='Desc',
+            h1_tags=[],
+            h2_tags=[],
+            image_alts=[],
+            internal_links=[],
+            https=True,
+            status_code=200,
+            load_time_ms=500,
+        )
+
+    @patch('audits.tasks.generate_recommendations')
+    @patch('audits.tasks.score_seo')
+    @patch('audits.tasks.score_tech')
+    @patch('audits.tasks.score_conversion')
+    @patch('audits.tasks.score_content')
+    @patch('audits.tasks.score_trust')
+    def test_chains_generate_recommendations_on_success(
+        self, mock_trust, mock_content, mock_conv, mock_tech, mock_seo, mock_gen_recs
+    ):
+        from audits.scorers.schemas import CategoryResult
+        mock_seo.return_value = CategoryResult(category='seo', score=90, parameters=[], top_issues=[], summary='Good.')
+        mock_tech.return_value = CategoryResult(category='tech', score=90, parameters=[], top_issues=[], summary='Good.')
+        mock_conv.return_value = CategoryResult(category='conversion', score=90, parameters=[], top_issues=[], summary='Good.')
+        mock_content.return_value = CategoryResult(category='content', score=90, parameters=[], top_issues=[], summary='Good.')
+        mock_trust.return_value = CategoryResult(category='trust', score=90, parameters=[], top_issues=[], summary='Good.')
+
+        from audits.tasks import run_audit
+        run_audit(self.job.id)
+
+        mock_gen_recs.delay.assert_called_once_with(self.job.id)
