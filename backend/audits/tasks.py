@@ -13,6 +13,9 @@ from .scorers.tech import score_tech
 from .scorers.conversion import score_conversion
 from .scorers.content import score_content
 from .scorers.trust import score_trust
+from .decision.rules import apply_priority_rules
+from .decision.claude_client import generate_recommendations_with_claude
+from .rag.retrieval import retrieve_similar_docs
 
 logger = logging.getLogger(__name__)
 
@@ -194,3 +197,63 @@ def run_audit(audit_job_id: int):
             job.save(update_fields=['status', 'error_message'])
         except Exception:
             pass
+
+
+@shared_task
+def generate_recommendations(audit_job_id: int):
+    from .models import AuditJob, AuditReport, AuditIssue, Recommendation
+
+    try:
+        job = AuditJob.objects.get(pk=audit_job_id)
+        report = AuditReport.objects.get(audit_job=job)
+        issues = list(AuditIssue.objects.filter(report=report))
+
+        if not issues:
+            logger.info(f'generate_recommendations: no issues for job {audit_job_id}')
+            return
+
+        ranked = apply_priority_rules(issues, report)
+
+        ranked_issues_with_context = []
+        for issue, tier in ranked:
+            try:
+                docs = retrieve_similar_docs(issue.description, top_k=3)
+            except Exception as e:
+                logger.warning(f'RAG retrieval failed for issue {issue.id}: {e}')
+                docs = []
+            ranked_issues_with_context.append({
+                'issue_id': issue.id,
+                'tier': tier,
+                'category': issue.category,
+                'severity': issue.severity,
+                'title': issue.title,
+                'description': issue.description,
+                'parameter_key': issue.parameter_key,
+                'score': issue.score,
+                'rag_context': [
+                    {'title': d.title, 'content': d.content[:300]}
+                    for d in docs
+                ],
+            })
+
+        results = generate_recommendations_with_claude(ranked_issues_with_context)
+
+        issue_map = {issue.id: issue for issue, _ in ranked}
+        Recommendation.objects.bulk_create([
+            Recommendation(
+                report=report,
+                issue=issue_map.get(r.issue_id),
+                priority_score=r.priority_score,
+                effort=r.effort,
+                impact=r.impact,
+                title=r.title,
+                rationale=r.rationale,
+            )
+            for r in results
+        ])
+        logger.info(
+            f'generate_recommendations: created {len(results)} recommendations for job {audit_job_id}'
+        )
+
+    except Exception as exc:
+        logger.error(f'generate_recommendations failed for job {audit_job_id}: {exc}')
