@@ -31,6 +31,10 @@ ai-business-audit/
 │       ├── rag/          # RAG knowledge retrieval
 │       │   ├── openai_client.py  # embed_text() via OpenAI text-embedding-3-small
 │       │   └── retrieval.py      # retrieve_similar_docs() via pgvector CosineDistance
+│       ├── decision/     # Decision engine
+│       │   ├── rules.py          # apply_priority_rules() — deterministic tier sorter
+│       │   ├── claude_client.py  # generate_recommendations_with_claude() — LLM reasoning
+│       │   └── schemas.py        # RecommendationResult Pydantic model
 │       ├── management/
 │       │   └── commands/
 │       │       └── seed_knowledge.py  # seed_knowledge_base() + Django Command
@@ -65,7 +69,7 @@ docker compose exec backend python manage.py createsuperuser
 - [x] Phase 2 — Scraper (Celery task, Playwright + BS4, 5-page crawl, REST endpoints)
 - [x] Phase 3 — Audit Engine (deterministic + LLM scoring, run_audit task, report + issues API)
 - [x] Phase 4 — RAG Knowledge System
-- [ ] Phase 5 — Decision Engine
+- [x] Phase 5 — Decision Engine
 - [ ] Phase 6 — Dashboard
 
 ## Key Architectural Decisions
@@ -80,6 +84,7 @@ docker compose exec backend python manage.py createsuperuser
 - **Sync seed endpoint** — POST /api/knowledge/seed/ runs synchronously; seeding ~6 docs takes <5s, so Celery overhead is not justified for a one-time admin operation
 - **YAML frontmatter in markdown** — each knowledge_base/*.md file carries title/category/source metadata parsed with python-frontmatter; self-contained, standard format
 - **Idempotent seeding** — seed_knowledge_base() skips any KnowledgeDoc whose title already exists; safe to run multiple times; accepts an optional directory parameter for testability
+- **decision/ sub-package** — mirrors scorers/ and rag/ pattern; rules.py handles deterministic priority tiering (critical → blocker, low category score → blocker), claude_client.py makes a single LLM call with all ranked issues + per-issue RAG context; generate_recommendations Celery task chains from run_audit via .delay() — failure is logged but does not flip job status since the audit itself is already complete
 
 ## Known Issues / TODOs
 - Phase 1 only: ANTHROPIC_API_KEY and OPENAI_API_KEY are placeholder values — fill in before Phase 3
