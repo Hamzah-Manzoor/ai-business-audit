@@ -188,7 +188,10 @@ def run_audit(audit_job_id: int):
         job.completed_at = timezone.now()
         job.save(update_fields=['status', 'completed_at'])
         logger.info(f"run_audit completed for job {audit_job_id}: overall_score={overall}")
-        generate_recommendations.delay(audit_job_id)
+        try:
+            generate_recommendations.delay(audit_job_id)
+        except Exception as e:
+            logger.warning(f"Failed to dispatch generate_recommendations for job {audit_job_id}: {e}")
 
     except Exception as exc:
         logger.error(f"run_audit failed for job {audit_job_id}: {exc}")
@@ -207,6 +210,10 @@ def generate_recommendations(audit_job_id: int):
     try:
         job = AuditJob.objects.get(pk=audit_job_id)
         report = AuditReport.objects.get(audit_job=job)
+        if Recommendation.objects.filter(report=report).exists():
+            logger.info(f'generate_recommendations: recommendations already exist for job {audit_job_id}, skipping')
+            return
+
         issues = list(AuditIssue.objects.filter(report=report))
 
         if not issues:
