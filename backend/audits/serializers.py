@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AuditIssue, AuditJob, AuditReport, Business
+from .models import AuditIssue, AuditJob, AuditReport, Business, Recommendation
 
 
 class BusinessSerializer(serializers.ModelSerializer):
@@ -34,4 +34,11 @@ class AuditReportSerializer(serializers.ModelSerializer):
             'seo_score', 'conversion_score', 'content_score', 'tech_score', 'trust_score',
             'created_at', 'issues',
         ]
+        read_only_fields = fields
+
+
+class RecommendationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recommendation
+        fields = ['id', 'issue_id', 'priority_score', 'effort', 'impact', 'title', 'rationale', 'created_at']
         read_only_fields = fields

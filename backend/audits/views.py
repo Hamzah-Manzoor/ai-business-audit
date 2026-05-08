@@ -10,6 +10,7 @@ from .serializers import (
     AuditJobStatusSerializer,
     AuditReportSerializer,
     BusinessSerializer,
+    RecommendationSerializer,
 )
 from .tasks import scrape_website
 from .management.commands.seed_knowledge import seed_knowledge_base
@@ -58,6 +59,14 @@ class AuditIssueListView(generics.ListAPIView):
         if severity:
             qs = qs.filter(severity=severity)
         return qs
+
+
+class RecommendationListView(generics.ListAPIView):
+    serializer_class = RecommendationSerializer
+
+    def get_queryset(self):
+        report = get_object_or_404(AuditReport, audit_job_id=self.kwargs['pk'])
+        return report.recommendations.all()
 
 
 class SeedKnowledgeView(APIView):
